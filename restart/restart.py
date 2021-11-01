@@ -1,15 +1,13 @@
 from PyQt5.Qt import *
 from krita import *
+from tempfile import gettempdir
 
-import re
 import os
 import sys
-import random
-import subprocess
 
+import random
 import json
 
-from tempfile import gettempdir
 
 EXTENSION_ID = 'pykrita_restart'
 MENU_ENTRY = 'Restart Krita'
@@ -20,20 +18,15 @@ class Restart(Extension):
     def __init__(self, parent):
         """Initialise plugin"""
         super().__init__(parent)
-        
-        tempPath=gettempdir() #get temp folder location
-        self.__tempPath=os.path.join(gettempdir(), 'restartTemp')
 
+        tempPath=gettempdir() 
+        self.__tempPath=os.path.join(gettempdir(), 'Krita_restart_temp')
         try:
             os.makedirs(self.__tempPath)
         except FileExistsError:
             pass
-        
         self.__fileAfterRestart=os.path.join(self.__tempPath, "tempDB.json")
         
-        # openeded documents dictionnary 
-        self.__docs={}
-
     def setup(self):
         """Executed at Krita startup, beofre main window is created"""
         # define a trigger, to let plugin reopen document as soon as window is created
@@ -73,7 +66,7 @@ class Restart(Extension):
                 if file['usetemp'] is True :  
                     os.remove(file["tempfilename"])
 
-            # remove file with list of document (be sure to not reopened it on next "normal" Krita close/start)
+            # remove file with list of documents to be sure to not reopened it on next "normal" Krita close/start)
             os.remove(self.__fileAfterRestart)
             
             Krita.instance().activeWindow().qwindow().unsetCursor()
@@ -88,7 +81,7 @@ class Restart(Extension):
     # -------------------------------- restart code --------------------------------
     def actionRestart(self):
         
-        self.__checkOpenedDocuments() # check if documents are opened, and save them for restart
+        self.saveTempDocuments() # check if documents are opened, and save them for restart
 
         msgBox = QMessageBox()
         msgBox.setText('Restart right now??? Or prepare Document-Reload for next manual startup?')
@@ -102,9 +95,9 @@ class Restart(Extension):
             os.execl(sys.executable,"dummy_argument")
 
     # -------------------------------- save documents -----------------------
-    def __checkOpenedDocuments(self):
+    def saveTempDocuments(self):
         
-        self.__docs=[]  
+        self.__docs=[]
         numTempDoc=1 #start counting at 1
         
         for doc in Krita.instance().documents():
@@ -129,8 +122,6 @@ class Restart(Extension):
                     'modified': doc.modified(),
                     'usetemp': False
                 })
-            
-            doc.close()
 
         # write json file
         if len(self.__docs)>0:
