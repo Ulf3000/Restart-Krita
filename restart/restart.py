@@ -20,21 +20,14 @@ class Restart(Extension):
     def __init__(self, parent):
         """Initialise plugin"""
         super().__init__(parent)
-        # determinate path where to save temp files 
-        # prefer a local applicaion directory rather than a /tmp directory
-        #paths=QStandardPaths.standardLocations(QStandardPaths.TempLocation)
         
         tempPath=gettempdir() #get temp folder location
-
-
         self.__tempPath=os.path.join(gettempdir(), 'restartTemp')
 
         try:
             os.makedirs(self.__tempPath)
         except FileExistsError:
-            # directory already exists
             pass
-
         
         self.__fileAfterRestart=os.path.join(self.__tempPath, "tempDB.json")
         
@@ -52,9 +45,10 @@ class Restart(Extension):
     def onWindowCreated(self):
         """Slot executed when Krita window is created"""
         if os.path.isfile(self.__fileAfterRestart):
-            # if a file with list of document exists, process it to open documents
-            Krita.instance().activeWindow().qwindow().setCursor(Qt.WaitCursor)
             
+            Krita.instance().activeWindow().qwindow().setCursor(Qt.WaitCursor)
+
+            # if a file with list of document exists, process it to open documents
             with open(self.__fileAfterRestart, 'r') as file:
                 files = json.load(file)
 
@@ -93,89 +87,27 @@ class Restart(Extension):
 
     # -------------------------------- restart code --------------------------------
     def actionRestart(self):
-        """Execute restart action"""
-        # check if documents are opened, and ask for user confirmation
-        self.__checkOpenedDocuments()
         
-        # -- restart --
-        if sys.platform=='win32':
-            # running on Windows
-            readyToRestart=self.__restartOsWindow()
-        elif sys.platform=='linux':
-            readyToRestart=self.__restartOsLinux()
-        else:
-            # need to implement restart process for Linux, MacOS
-            readyToRestart=False
-        
-        if readyToRestart:
-            # ok, possible to restart
+        self.__checkOpenedDocuments() # check if documents are opened, and save them for restart
 
-            # hier muss ich den restart code rein .. aber unwichtiger als der rest
+        msgBox = QMessageBox()
+        msgBox.setText('Restart right now??? Or prepare Document-Reload for next manual startup?')
+        msgBox.addButton(QPushButton('RESTART NOW'), QMessageBox.YesRole)
+        msgBox.addButton(QPushButton('PREPARE RELOAD'), QMessageBox.NoRole)
+
+        userAnswer = msgBox.exec_()
+        if userAnswer==QMessageBox.No:
             QApplication.quit()
         else:
-            QMessageBox.warning(None, "Restart Krita", "Unable to initialise restart process\nAction cancelled")
-
-    def __restartOsLinux(self):
-        """Linux specific process to restart Krita 
-        
-        Might be OK on *nix environment...
-        """
-        kritaPid=os.getpid()
-        pidCheckCmd=f"ps -p {kritaPid} -o cmd --no-headers"
-        kritaPath=os.popen(pidCheckCmd).read().replace("\n","")
-        
-        shCmd=f"sh -c 'while [ $({pidCheckCmd}) ]; do sleep 0.5; done; {kritaPath}&'&"
-        os.system(shCmd)
-        
-        return True
-
-    def __restartOsWindow(self):
-        """Windows 10 specific process to restart Krita 
-        
-        Might be OK on Windows 11, maybe Ok on Windows 7...
-        """
-        kritaPid=os.getpid()
-        kritaPath=sys.executable
-
-        # note: 
-        #   following "EncodedCommand":
-        #       cABhAHIAYQBtACAAKAANAAoAIAAgAFsAUABhAHIAYQBtAGUAdABlAHIAKABNAGEAbgBkAGEAdABvAHIAeQA9ACQAdAByAHUAZQApAF0AWwBpAG4AdABdACQAawByAGkAdABhAFAAaQBkACwADQAKACAAIABbAFAAYQByAGEAbQBlAHQAZQByACgATQBhAG4AZABhAHQAbwByAHkAPQAkAHQAcgB1AGUAKQBdAFsAcwB0AHIAaQBuAGcAXQAkAGsAcgBpAHQAYQBQAGEAdABoAA0ACgApAA0ACgANAAoAWwBiAG8AbwBsAF0AJABsAG8AbwBwAD0AJABUAHIAdQBlAA0ACgB3AGgAaQBsAGUAKAAkAGwAbwBvAHAAKQAgAHsADQAKACAAIAAgACAAdAByAHkAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAJABwAD0ARwBlAHQALQBQAHIAbwBjAGUAcwBzACAALQBpAGQAIAAkAGsAcgBpAHQAYQBQAGkAZAAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAJwBTAHQAbwBwACcADQAKACAAIAAgACAAIAAgACAAIABTAHQAYQByAHQALQBTAGwAZQBlAHAAIAAtAE0AaQBsAGwAaQBzAGUAYwBvAG4AZABzACAANQAwADAADQAKACAAIAAgACAAfQANAAoAIAAgACAAIABjAGEAdABjAGgAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAIwAgAG4AbwB0ACAAZgBvAHUAbgBkAA0ACgAgACAAIAAgACAAIAAgACAAIwAgAGUAeABpAHQAIABsAG8AbwBwAA0ACgAgACAAIAAgACAAIAAgACAAJABsAG8AbwBwAD0AJABGAGEAbABzAGUADQAKACAAIAAgACAAfQANAAoAfQANAAoADQAKAEkAbgB2AG8AawBlAC0ARQB4AHAAcgBlAHMAcwBpAG8AbgAgACQAawByAGkAdABhAFAAYQB0AGgA
-        #   is a base64 encoded powershell script
-        #   """
-        #   param (
-        #     [Parameter(Mandatory=$true)][int]$kritaPid,
-        #     [Parameter(Mandatory=$true)][string]$kritaPath
-        #   )
-        #
-        #   [bool]$loop=$True
-        #   while($loop) {
-        #       try {
-        #           $p=Get-Process -id $kritaPid -ErrorAction 'Stop'
-        #           Start-Sleep -Milliseconds 500
-        #       }
-        #       catch {
-        #           # not found
-        #           # exit loop
-        #           $loop=$False
-        #       }
-        #   }
-        #
-        #   Invoke-Expression $kritaPath
-        #   """
-        #
-        #   ==> recommended: decode Base64 string by yourself to be sure of its content :-P
-        #   
-        cmdParameters=f"/c powershell -noprofile -ExecutionPolicy bypass -command '{kritaPid}', '{kritaPath}' | powershell -noprofile -ExecutionPolicy bypass -EncodedCommand cABhAHIAYQBtACAAKAANAAoAIAAgAFsAUABhAHIAYQBtAGUAdABlAHIAKABNAGEAbgBkAGEAdABvAHIAeQA9ACQAdAByAHUAZQApAF0AWwBpAG4AdABdACQAawByAGkAdABhAFAAaQBkACwADQAKACAAIABbAFAAYQByAGEAbQBlAHQAZQByACgATQBhAG4AZABhAHQAbwByAHkAPQAkAHQAcgB1AGUAKQBdAFsAcwB0AHIAaQBuAGcAXQAkAGsAcgBpAHQAYQBQAGEAdABoAA0ACgApAA0ACgANAAoAWwBiAG8AbwBsAF0AJABsAG8AbwBwAD0AJABUAHIAdQBlAA0ACgB3AGgAaQBsAGUAKAAkAGwAbwBvAHAAKQAgAHsADQAKACAAIAAgACAAdAByAHkAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAJABwAD0ARwBlAHQALQBQAHIAbwBjAGUAcwBzACAALQBpAGQAIAAkAGsAcgBpAHQAYQBQAGkAZAAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAJwBTAHQAbwBwACcADQAKACAAIAAgACAAIAAgACAAIABTAHQAYQByAHQALQBTAGwAZQBlAHAAIAAtAE0AaQBsAGwAaQBzAGUAYwBvAG4AZABzACAANQAwADAADQAKACAAIAAgACAAfQANAAoAIAAgACAAIABjAGEAdABjAGgAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAIwAgAG4AbwB0ACAAZgBvAHUAbgBkAA0ACgAgACAAIAAgACAAIAAgACAAIwAgAGUAeABpAHQAIABsAG8AbwBwAA0ACgAgACAAIAAgACAAIAAgACAAJABsAG8AbwBwAD0AJABGAGEAbABzAGUADQAKACAAIAAgACAAfQANAAoAfQANAAoADQAKAEkAbgB2AG8AawBlAC0ARQB4AHAAcgBlAHMAcwBpAG8AbgAgACQAawByAGkAdABhAFAAYQB0AGgA"
-        return QProcess.startDetached("cmd", [cmdParameters])
+            os.execl(sys.executable,"dummy_argument")
 
     # -------------------------------- save documents -----------------------
     def __checkOpenedDocuments(self):
         
-        self.__docs=[]  # all documents
+        self.__docs=[]  
         numTempDoc=1 #start counting at 1
         
         for doc in Krita.instance().documents():
-            # doc not yet saved, produce a tmp filename
             
             if doc.fileName()=='' or doc.modified() is True: # if modified or unsaved use tempfile otherwise use real file
                 
