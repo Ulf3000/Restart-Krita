@@ -25,7 +25,17 @@ class Restart(Extension):
         #paths=QStandardPaths.standardLocations(QStandardPaths.TempLocation)
         
         tempPath=gettempdir() #get temp folder location
+
+
         self.__tempPath=os.path.join(gettempdir(), 'restartTemp')
+
+        try:
+            os.makedirs(self.__tempPath)
+        except FileExistsError:
+            # directory already exists
+            pass
+
+        
         self.__fileAfterRestart=os.path.join(self.__tempPath, "tempDB.json")
         
         # openeded documents dictionnary 
