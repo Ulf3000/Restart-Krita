@@ -57,7 +57,7 @@ class Restart(Extension):
                 Krita.instance().activeWindow().addView(doc)
 
                 doc.setFileName(file["realfilename"])
-                # trick to set modified() state to True, needed for correct save behaviour
+                # trick to set modified() state to True, needed for correct save behaviour after the restart/reload
                 if file["modified"] is True:
                     doc.setAnnotation("Temp annotation to delete just to set modify state", "temp", b'')
                     doc.removeAnnotation("Temp annotation to delete just to set modify state")
@@ -92,7 +92,25 @@ class Restart(Extension):
         if userAnswer==QMessageBox.No:
             QApplication.quit()
         else:
-            os.execl(sys.executable,"dummy_argument")
+            # -- restart --
+            if sys.platform=='win32':
+                os.execl(sys.executable,"dummy_argument") /need at least one argument so just set a dummy argument
+            elif sys.platform=='linux':
+                readyToRestart=self.__restartOsLinux()
+        
+    def __restartOsLinux(self):
+        """Linux specific process to restart Krita 
+        
+        Might be OK on *nix environment...
+        """
+        kritaPid=os.getpid()
+        pidCheckCmd=f"ps -p {kritaPid} -o cmd --no-headers"
+        kritaPath=os.popen(pidCheckCmd).read().replace("\n","")
+        
+        shCmd=f"sh -c 'while [ $({pidCheckCmd}) ]; do sleep 0.5; done; {kritaPath}&'&"
+        os.system(shCmd)
+        
+        return True
 
     # -------------------------------- save documents -----------------------
     def saveTempDocuments(self):
