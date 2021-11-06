@@ -94,10 +94,12 @@ class Restart(Extension):
         else:
             # -- restart --
             if sys.platform=='win32':
-                os.execl(sys.executable,"dummy_argument") /need at least one argument so just set a dummy argument
+                # running on Windows
+                os.execl(sys.executable,"dummy_argument")
             elif sys.platform=='linux':
                 readyToRestart=self.__restartOsLinux()
-        
+
+
     def __restartOsLinux(self):
         """Linux specific process to restart Krita 
         
@@ -110,7 +112,7 @@ class Restart(Extension):
         shCmd=f"sh -c 'while [ $({pidCheckCmd}) ]; do sleep 0.5; done; {kritaPath}&'&"
         os.system(shCmd)
         
-        return True
+        return True      
 
     # -------------------------------- save documents -----------------------
     def saveTempDocuments(self):
