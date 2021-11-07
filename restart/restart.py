@@ -2,8 +2,11 @@ from PyQt5.Qt import *
 from krita import *
 from tempfile import gettempdir
 
+import re
 import os
 import sys
+import subprocess
+
 
 import random
 import json
@@ -89,15 +92,17 @@ class Restart(Extension):
         msgBox.addButton(QPushButton('PREPARE RELOAD'), QMessageBox.NoRole)
 
         userAnswer = msgBox.exec_()
-        if userAnswer==QMessageBox.No:
+        if userAnswer==1:
             QApplication.quit()
         else:
             # -- restart --
             if sys.platform=='win32':
                 # running on Windows
-                os.execl(sys.executable,"dummy_argument")
+                self.__restartOsWindows()
             elif sys.platform=='linux':
-                readyToRestart=self.__restartOsLinux()
+                self.__restartOsLinux()
+
+        QApplication.quit()
 
 
     def __restartOsLinux(self):
@@ -110,9 +115,48 @@ class Restart(Extension):
         kritaPath=os.popen(pidCheckCmd).read().replace("\n","")
         
         shCmd=f"sh -c 'while [ $({pidCheckCmd}) ]; do sleep 0.5; done; {kritaPath}&'&"
-        os.system(shCmd)
+        os.system(shCmd)     
+
+    def __restartOsWindows(self):
+        """Windows 10 specific process to restart Krita 
         
-        return True      
+        Might be OK on Windows 11, maybe Ok on Windows 7...
+        """
+        kritaPid=os.getpid()
+        kritaPath=sys.executable
+
+        # note: 
+        #   following "EncodedCommand":
+        #       cABhAHIAYQBtACAAKAANAAoAIAAgAFsAUABhAHIAYQBtAGUAdABlAHIAKABNAGEAbgBkAGEAdABvAHIAeQA9ACQAdAByAHUAZQApAF0AWwBpAG4AdABdACQAawByAGkAdABhAFAAaQBkACwADQAKACAAIABbAFAAYQByAGEAbQBlAHQAZQByACgATQBhAG4AZABhAHQAbwByAHkAPQAkAHQAcgB1AGUAKQBdAFsAcwB0AHIAaQBuAGcAXQAkAGsAcgBpAHQAYQBQAGEAdABoAA0ACgApAA0ACgANAAoAWwBiAG8AbwBsAF0AJABsAG8AbwBwAD0AJABUAHIAdQBlAA0ACgB3AGgAaQBsAGUAKAAkAGwAbwBvAHAAKQAgAHsADQAKACAAIAAgACAAdAByAHkAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAJABwAD0ARwBlAHQALQBQAHIAbwBjAGUAcwBzACAALQBpAGQAIAAkAGsAcgBpAHQAYQBQAGkAZAAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAJwBTAHQAbwBwACcADQAKACAAIAAgACAAIAAgACAAIABTAHQAYQByAHQALQBTAGwAZQBlAHAAIAAtAE0AaQBsAGwAaQBzAGUAYwBvAG4AZABzACAANQAwADAADQAKACAAIAAgACAAfQANAAoAIAAgACAAIABjAGEAdABjAGgAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAIwAgAG4AbwB0ACAAZgBvAHUAbgBkAA0ACgAgACAAIAAgACAAIAAgACAAIwAgAGUAeABpAHQAIABsAG8AbwBwAA0ACgAgACAAIAAgACAAIAAgACAAJABsAG8AbwBwAD0AJABGAGEAbABzAGUADQAKACAAIAAgACAAfQANAAoAfQANAAoADQAKAEkAbgB2AG8AawBlAC0ARQB4AHAAcgBlAHMAcwBpAG8AbgAgACQAawByAGkAdABhAFAAYQB0AGgA
+        #   is a base64 encoded powershell script
+        #   """
+        #   param (
+        #     [Parameter(Mandatory=$true)][int]$kritaPid,
+        #     [Parameter(Mandatory=$true)][string]$kritaPath
+        #   )
+        #
+        #   [bool]$loop=$True
+        #   while($loop) {
+        #       try {
+        #           $p=Get-Process -id $kritaPid -ErrorAction 'Stop'
+        #           Start-Sleep -Milliseconds 500
+        #       }
+        #       catch {
+        #           # not found
+        #           # exit loop
+        #           $loop=$False
+        #       }
+        #   }
+        #
+        #   Invoke-Expression $kritaPath
+        #   """
+        #
+        #   ==> recommended: decode Base64 string by yourself to be sure of its content :-P
+        #   
+        cmdParameters=f"/c powershell -noprofile -ExecutionPolicy bypass -command '{kritaPid}', '{kritaPath}' | powershell -noprofile -ExecutionPolicy bypass -EncodedCommand cABhAHIAYQBtACAAKAANAAoAIAAgAFsAUABhAHIAYQBtAGUAdABlAHIAKABNAGEAbgBkAGEAdABvAHIAeQA9ACQAdAByAHUAZQApAF0AWwBpAG4AdABdACQAawByAGkAdABhAFAAaQBkACwADQAKACAAIABbAFAAYQByAGEAbQBlAHQAZQByACgATQBhAG4AZABhAHQAbwByAHkAPQAkAHQAcgB1AGUAKQBdAFsAcwB0AHIAaQBuAGcAXQAkAGsAcgBpAHQAYQBQAGEAdABoAA0ACgApAA0ACgANAAoAWwBiAG8AbwBsAF0AJABsAG8AbwBwAD0AJABUAHIAdQBlAA0ACgB3AGgAaQBsAGUAKAAkAGwAbwBvAHAAKQAgAHsADQAKACAAIAAgACAAdAByAHkAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAJABwAD0ARwBlAHQALQBQAHIAbwBjAGUAcwBzACAALQBpAGQAIAAkAGsAcgBpAHQAYQBQAGkAZAAgAC0ARQByAHIAbwByAEEAYwB0AGkAbwBuACAAJwBTAHQAbwBwACcADQAKACAAIAAgACAAIAAgACAAIABTAHQAYQByAHQALQBTAGwAZQBlAHAAIAAtAE0AaQBsAGwAaQBzAGUAYwBvAG4AZABzACAANQAwADAADQAKACAAIAAgACAAfQANAAoAIAAgACAAIABjAGEAdABjAGgAIAB7AA0ACgAgACAAIAAgACAAIAAgACAAIwAgAG4AbwB0ACAAZgBvAHUAbgBkAA0ACgAgACAAIAAgACAAIAAgACAAIwAgAGUAeABpAHQAIABsAG8AbwBwAA0ACgAgACAAIAAgACAAIAAgACAAJABsAG8AbwBwAD0AJABGAGEAbABzAGUADQAKACAAIAAgACAAfQANAAoAfQANAAoADQAKAEkAbgB2AG8AawBlAC0ARQB4AHAAcgBlAHMAcwBpAG8AbgAgACQAawByAGkAdABhAFAAYQB0AGgA"
+        QProcess.startDetached("cmd", [cmdParameters])
+        
+
 
     # -------------------------------- save documents -----------------------
     def saveTempDocuments(self):
