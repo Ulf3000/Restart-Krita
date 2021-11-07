@@ -2,11 +2,8 @@ from PyQt5.Qt import *
 from krita import *
 from tempfile import gettempdir
 
-import re
 import os
 import sys
-import subprocess
-
 
 import random
 import json
