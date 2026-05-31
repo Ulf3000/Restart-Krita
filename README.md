@@ -5,7 +5,7 @@ A restarting script for Krita with **Session Reload** (not the built-in one) —
 Behaviour is similar to when Clip Studio or Photoshop crash — they also reload all pictures including unsaved documents. But here you can **enforce it** whenever you need: if Krita lost pen pressure, starts lagging, you need a full PC reboot, or you just aren't a friend of sleeping PCs but still want to pick up where you left off next day after booting up. 🖊️
 
 **Two options:**
-1. 🔁 **Restart directly** — if Krita lost pen pressure or begins lagging
+1. 🔁 **Restart directly** — if Krita lost pen pressure or begins lagging or has another problem 
 2. 💾 **Save the session and quit** — for picking up later
 
 ---
